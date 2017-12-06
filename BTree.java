@@ -47,6 +47,7 @@ public class BTree {
 			else
 			{
 				useRecord = findRecord(id, hmNode, rootNum);
+				System.out.println(useRecord);
 			}
 			
 			if(!hmNode.containsKey(useRecord))
@@ -57,22 +58,29 @@ public class BTree {
 			}
 			
 			int insertIndex = hmNode.get(useRecord).insertLoc(id);
-			hmNode.get(useRecord).move(insertIndex);
+			if(hmNode.get(useRecord).getValue(insertIndex) > id)
+			{
+				hmNode.get(useRecord).move(insertIndex);
+			}
 			hmNode.get(useRecord).insert(insertIndex, id, offset);
+			
+			writeData(useRecord, hmNode);
 			splitNode(useRecord, hmNode);
+			
+			printAllRecord(hmNode);
 		}
 	}
 	
-	public void splitNode(int useRecord, HashMap<Integer, BtreeNode> hmNode)
+	public void splitNode(int useRecord, HashMap<Integer, BtreeNode> hmNode) throws IOException
 	{
 		int numCount = hmNode.get(useRecord).getRecordCount();
 		if(numCount >= 5)
 		{
 			int parentID = hmNode.get(useRecord).getValue(8);
 			int leftRecordNum = useRecord;
+			int rightRecordNum = recordCount;
 			
 			BtreeNode right = new BtreeNode();
-			int rightRecordNum = recordCount;
 			hmNode.put(rightRecordNum, right);
 			recordCount++;
 			
@@ -81,23 +89,28 @@ public class BTree {
 			if(useRecord == rootNum)
 			{
 				BtreeNode newRoot = new BtreeNode();
+				rootNum = recordCount;
 				recordCount++;
 				
 				newRoot.changeValue(1, leftRecordNum);
 				newRoot.changeValue(2, parentID);
 				newRoot.changeValue(3, offVal);
 				newRoot.changeValue(4, rightRecordNum);
-				rootNum = recordCount;
 				hmNode.put(rootNum, newRoot);
+				writeData(rootNum, hmNode);
 			}
 			else
 			{
 				int ins = hmNode.get(rootNum).insertLoc(parentID);
-				hmNode.get(rootNum).move(ins);
+				if(hmNode.get(rootNum).getValue(ins) > parentID)
+				{
+					hmNode.get(rootNum).move(ins);
+				}
 				hmNode.get(rootNum).insert(ins, parentID, offVal);
 				
 				hmNode.get(rootNum).changeValue(ins - 1, leftRecordNum);
 				hmNode.get(rootNum).changeValue(ins + 2, rightRecordNum);
+				writeData(rootNum, hmNode);
 			}
 			
 			int rightChild0 = hmNode.get(useRecord).getValue(10);
@@ -116,8 +129,10 @@ public class BTree {
 			hmNode.get(rightRecordNum).changeValue(5, rightID_2);
 			hmNode.get(rightRecordNum).changeValue(6, rightOff_2);
 			hmNode.get(rightRecordNum).changeValue(7, rightChild2);
+			writeData(rightRecordNum, hmNode);
 			
 			hmNode.get(useRecord).split(rootNum);
+			writeData(useRecord, hmNode);
 			
 			splitNode(rootNum, hmNode);
 		}
@@ -125,25 +140,80 @@ public class BTree {
 	
 	public int findRecord(int id, HashMap<Integer, BtreeNode> hmNode, int record)
 	{
-		int[] arr = hmNode.get(record).allKeys();
+		int[] data = hmNode.get(record).getData();
 		
-		for(int i = 0; i < arr.length; i++)
+		for(int i = 2; i < data.length; i += 3)
 		{
-			if(arr[i] > id)
+			if(data[i] > id)
 			{
-				int Child_record = hmNode.get(record).getValue(i*3 - 2);
+				int Child_record = hmNode.get(record).getValue(i - 1);
 				if(Child_record != -1)
 				{
-					findRecord(id, hmNode, Child_record);
-				}
-				else
-				{
-					return record;
+					record = Child_record;
+					findRecord(id, hmNode, record);
 				}
 			}
 		}
 		
+		int lastKeyIndex = -1;
+		
+		for(int j = data.length - 3; j >= 2; j -= 3)
+		{
+			if(data[j] != -1)
+			{
+				lastKeyIndex = j;
+			}
+		}
+		
+		if(data[lastKeyIndex] < id)
+		{
+			int child = hmNode.get(record).getValue(lastKeyIndex + 2);
+			
+			if(hmNode.get(record).getValue(child) != -1)
+			{
+				record = child;
+				findRecord(id, hmNode, record);
+			}
+		}
+		
 		return record;
+	}
+	
+	public void writeData(int record, HashMap<Integer, BtreeNode> hmNode) throws IOException
+	{
+		int[] allData = hmNode.get(record).getData();
+		
+		for(int elem: allData)
+		{
+			this.file.seek(16 + (record)*256);
+			this.file.writeShort(elem);;
+			this.file.seek(0);
+		    this.file.writeLong(this.recordCount);
+		    this.file.seek(8);
+		    this.file.writeLong(this.rootNum);
+		}
+	}
+	
+	//test
+	public void printAllRecord(HashMap<Integer, BtreeNode> hmNode)
+	{
+		String s = "";
+		for(int i = 0; i < recordCount; i++)
+		{
+			if(hmNode.containsKey(i))
+			{
+				BtreeNode n = hmNode.get(i);
+				int[] d = n.getData();
+				
+				s = s + "Record# " + i + ": (";
+				for(int j = 0; j < d.length - 1; j++)
+				{
+					s = s + d[j] + ", ";
+				}
+				s = s + d[d.length - 1] + ")" + "\n";
+			}
+		}
+		System.out.println(s);
 	}
 
 }

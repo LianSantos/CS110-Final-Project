@@ -262,7 +262,7 @@ public class BtreeNode {
 	{
 		int location = -1;
 		
-		for(int i = 2; i < 15; i += 3)
+		for(int i = 2; i < 17; i += 3)
 		{	
 			if(this.getValue(i) == -1 || this.getValue(i) > id)
 			{
@@ -285,12 +285,17 @@ public class BtreeNode {
 			this.changeValue(counter + 3, temp);
 			counter--;
 		}
+		
+		for(int i = insertIndex; i < insertIndex + 3; i++)
+		{
+			this.changeValue(i, -1);
+		}
 	}
 	
 	public void insert(int insertIndex, int key, int offsetValue)
 	{
-		this.changeValue(insertIndex, key);
-		this.changeValue(insertIndex + 1, offsetValue);
+		changeValue(insertIndex, key);
+		changeValue(insertIndex + 1, offsetValue);
 	}
 	
 	public void split(int parentID)
@@ -301,19 +306,6 @@ public class BtreeNode {
 		}
 		
 		this.changeValue(0, parentID);
-	}
-	
-	public int[] allKeys()
-	{
-		int[] arr = new int[5];
-		
-		arr[0] = key_1;
-		arr[1] = key_2;
-		arr[2] = key_3;
-		arr[4] = key_4;
-		arr[5] = key_5;
-		
-		return arr;
 	}
 	
 	public int[] getData()
