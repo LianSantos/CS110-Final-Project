@@ -1,300 +1,232 @@
 import java.util.*;
-import java.io.*;
-
-//holds the BTree formed from all the ID
-public class BTree {
-	
-	private final int order = 5; //indicates the maximum number of ID that a node can hold
-	private int Node_size;	//indicates the maximum number of long ints present per node
-	private int max_bytes;
-	private int recordCount;	//indicates the total number of records (number of nodes) 
-	private int rootNum;	//indicates what record is the root node
-	private HashMap<Integer, BtreeNode> hmNode;	//returns the equivalent node given the record number
-
-	private RandomAccessFile file;	//for creating the file for the BTree (default is Data.bt)
-	
-	public BTree(String strFile) throws IOException
+import java.io.FileNotFoundException;
+import java.io.RandomAccessFile;
+import java.io.File;
+import java.io.IOException;	
+import java.io.EOFException;
+import java.io.UnsupportedEncodingException;
+public class BTree
+{
+	private int cntNodes;
+	private RandomAccessFile file;
+	private int order;
+	private int CurrentValuesRecords;
+	private int recordSize;
+	public BTree(String strFile,int cvr) throws IOException
 	{
 		File file = new File(strFile);
-		hmNode = new HashMap<Integer, BtreeNode>();
-		Node_size = ((order - 1)*3) + 2;
-		max_bytes = Node_size*8;
-		
-		//creates the file if it does not exist
-        if(!file.exists())
-        {
-            this.recordCount = 0;
-            this.rootNum = 0;
+        if(!file.exists()){
+			this.CurrentValuesRecords = 0;
+			this.order = 7;
+			this.recordSize = ((order*3)-1)*8;
+            this.cntNodes = 1;
             this.file = new RandomAccessFile(file, "rwd");
             this.file.seek(0);
-            this.file.writeLong(this.recordCount);
-            this.file.writeLong(this.rootNum);
-        }
-        
-        //reads the date from the file and updates hmNode for all the important information
-        else
-        {
+            this.file.writeLong(this.cntNodes); //Writes number of nodes
+			this.file.seek(8);
+			this.file.writeLong(0); //Writes root node
+        }else{
+			this.order = 5;
             this.file = new RandomAccessFile(file,"rwd");
             this.file.seek(0);
-            this.readData(hmNode);
+            this.cntNodes = (int) this.file.readLong();
+			this.CurrentValuesRecords = cvr;
         }	
 	}
-	
-	//inserts a new ID in the BTree
-	public void insert(int id, int offset) throws IOException
+	public int getCheckNodes() throws IOException
 	{
-		int useRecord = -1;	//indicates the record number where the new ID will be inserted
-		
-		//if there are no other records present, useRecord is set to be record number 0 by default
-		if(recordCount <= 1)
-		{
-			useRecord = 0;
-		}
-		//calls findRecord method to determine which record should be used
-		else
-		{
-			useRecord = findRecord(id, hmNode, rootNum);
-		}
-		
-		//if the record is new, creates a new BtreeNode and updates hmNode
-		if(!hmNode.containsKey(useRecord))
-		{
-			BtreeNode bN = new BtreeNode(order);
-			hmNode.put(useRecord, bN); 
-			recordCount++;
-		}
-		
-		int insertIndex = hmNode.get(useRecord).insertLoc(id);	//determines where in BtreeNode should the new ID be inserted
-		//moves the IDs in the BtreeNode to allow the insertion of the new ID in the proper place
-		if(hmNode.get(useRecord).getValue(insertIndex) > id)
-		{
-			hmNode.get(useRecord).move(insertIndex);
-		}
-		hmNode.get(useRecord).insert(insertIndex, id, offset);	//inserts the new ID to the BtreeNode
-		
-		writeData(useRecord, hmNode);	//writes the important data in the BtreeNode to the file
-		splitNode(useRecord, hmNode);	//checks if there is a need to undergo split
-		
-		printAllRecord(hmNode);	//prints all the records after every insertion. Used for checking and testing.
-		
-	}
-	
-	//splits the node similar to how BTree undergoes split
-	public void splitNode(int useRecord, HashMap<Integer, BtreeNode> hmNode) throws IOException
-	{
-		int numCount = hmNode.get(useRecord).getRecordCount();	//determines the number of ID in the node
-
-		//executes if the number of ID in the node exceeds the maximum capacity
-		if(numCount >= order)
-		{
-			int[] all_data = hmNode.get(useRecord).getAllData();
-			int middle = hmNode.get(useRecord).getMiddleKey();	//gets the middle ID. The middle ID is what will be transferred to the new root node
-			
-			//gives the appropriate data for the new root node
-			int parentID = hmNode.get(useRecord).getValue(middle);
-			int leftRecordNum = useRecord;
-			int rightRecordNum = recordCount;
-			
-			//creates the new right node
-			BtreeNode right = new BtreeNode(order);
-			hmNode.put(rightRecordNum, right);
-			recordCount++;
-			
-			int offVal = hmNode.get(useRecord).getValue(middle + 1); //gets the offset of the middle ID
-			
-			//executes if a new root node is created
-			if(useRecord == rootNum)
-			{
-				BtreeNode newRoot = new BtreeNode(order);
-				rootNum = recordCount;
-				recordCount++;
-				
-				//updates the data of the root node accordingly
-				newRoot.changeValue(1, leftRecordNum);
-				newRoot.changeValue(2, parentID);
-				newRoot.changeValue(3, offVal);
-				newRoot.changeValue(4, rightRecordNum);
-				hmNode.put(rootNum, newRoot);
-				//writes the data of the new root node to the file
-				writeData(rootNum, hmNode);
-			}
-			//executes if no new root node is created
-			else
-			{
-				//updates the data of the root node
-				//inserts the new node in the root node in the proper place
-				int ins = hmNode.get(rootNum).insertLoc(parentID);
-				if(hmNode.get(rootNum).getValue(ins) > parentID)
-				{
-					hmNode.get(rootNum).move(ins);
-				}
-				hmNode.get(rootNum).insert(ins, parentID, offVal);
-				
-				hmNode.get(rootNum).changeValue(ins - 1, leftRecordNum);
-				hmNode.get(rootNum).changeValue(ins + 2, rightRecordNum);
-				//writes the data of the updated root node to the file
-				writeData(rootNum, hmNode);
-			}
-			
-			//updates the data of the new right node accordingly 
-			int index = 1;
-			hmNode.get(rightRecordNum).changeValue(0, rootNum);
-			for(int i = middle + 2; i < all_data.length; i++)
-			{
-				hmNode.get(rightRecordNum).changeValue(index, all_data[i]);
-				index++;
-			}
-			//writes the data of the new right node to the file
-			writeData(rightRecordNum, hmNode);
-			
-			//updates the data of the node that has split (now the left node) accordingly
-			hmNode.get(useRecord).split(rootNum);
-			//writes the updated data of the left node to the file
-			writeData(useRecord, hmNode);
-			
-			//recursively checks if a new node needs to be split
-			splitNode(rootNum, hmNode);
-		}
-	}
-	
-	//determines what record number should the new ID be inserted
-	public int findRecord(int id, HashMap<Integer, BtreeNode> hmNode, int record)
-	{
-		int[] data = hmNode.get(record).getData();
-		
-		for(int i = 2; i < data.length; i += 3)
-		{
-			if(data[i] > id)
-			{
-				int Child_record = hmNode.get(record).getValue(i - 1);
-				if(Child_record != -1)
-				{
-					record = Child_record;
-					findRecord(id, hmNode, record);
-				}
-			}
-		}
-		
-		int lastKeyIndex = -1;
-		
-		for(int j = data.length - 3; j >= 2; j -= 3)
-		{
-			if(data[j] != -1)
-			{
-				lastKeyIndex = j;
-				break;
-			}
-		}
-		
-		if(data[lastKeyIndex] < id)
-		{
-			int child = hmNode.get(record).getValue(lastKeyIndex + 2);
-			
-			if(child != -1)
-			{
-				record = child;
-				findRecord(id, hmNode, record);
-			}
-		}
-		
-		return record;
-	}
-	
-	//writes the important data in the file created
-	public void writeData(int record, HashMap<Integer, BtreeNode> hmNode) throws IOException
-	{
-		int[] allData = hmNode.get(record).getData();
-		
-		this.file.seek(0);
-	    this.file.writeLong(this.recordCount);
-	    this.file.seek(8);
-	    this.file.writeLong(this.rootNum);
-	    
-		this.file.seek(16 + (record)*max_bytes);
-		
-		for(int elem: allData)
-		{
-			this.file.writeLong(elem);;
-		}
-	}
-	
-	//reads the data from the file to update important information to hmNode
-	public void readData(HashMap<Integer, BtreeNode> hmNode) throws IOException
-	{
-		this.file.seek(0);
-		recordCount = (int) this.file.readLong();
 		this.file.seek(8);
-		rootNum = (int) this.file.readLong();
+		return (int)this.file.readLong();
 		
-		int currentRec = 0;
+	}
+	public int getKeyValue(int key,int node) throws IOException // wrong change for btree
+	{
+		this.file.seek(32 + 24*key + recordSize*node );
+		try
+		{
+			return (int)this.file.readLong();
+		}
+		catch(EOFException e)
+		{
+			return -1;
+		}
 		
-		while(true)
+	}
+	public int getChild2(int key) throws IOException
+	{
+		try
+		{
+			return (int)this.file.readLong();
+		}
+		catch(EOFException e)
+		{
+			return -1;
+		}
+		
+	}
+	public void insert(int key, int valuekey,int nextNode) throws IOException
+	{
+		int CurrentIndex;
+		if(nextNode==-1)
+		{
+			this.file.seek(8);//points to rootnode index
+		    CurrentIndex = (int)this.file.readLong(); //Gets rootindex
+		}
+		this.file.seek(32+(recordSize)*CurrentIndex); //Points to current node
+		Object[] current = new Object[order-1];
+		for(int i = 1; i<order;i++)
 		{
 			try
 			{
-				if(!hmNode.containsKey(currentRec))
-				{
-					BtreeNode btN = new BtreeNode(order);
-					int[] data = btN.getData();
-					
-					for(int i = 0; i < data.length; i++)
-					{
-						int elem = (int) this.file.readLong();
-						btN.changeValue(i, elem);
-					}
-					
-					hmNode.put(currentRec, btN);
-				}
-				currentRec++;
+				this.file.seek((32+(recordSize)*CurrentIndex) + 24*(i-1) );
+				current[i-1] = this.file.readLong();
 			}
-			
-			catch(EOFException ex)
+			catch(EOFException e)
 			{
-				break;
+				current[i-1] = null;
 			}
 		}
+		int ins = checkPlacement(current,key);
 		
-	}
-	
-	//creates an array which will be sent to ValuesRecord that contains information of all the ID and their equivalent offset
-	public ArrayList<int[]> updateValuesRecord()
-	{
-		ArrayList<int[]> arr = new ArrayList<int[]>();
-		
-		for(int i = 0; i < recordCount; i++)
-		{
-			 arr.add(hmNode.get(i).getKeys(i));
-		}
-		
-		return arr;
-	}
-	
-	//closes the file
-	public void exit() throws IOException
-	{
-		this.file.close();
-	}
-	
-	//prints all the records
-	//for testing purposes
-	public void printAllRecord(HashMap<Integer, BtreeNode> hmNode)
-	{
-		String s = "";
-		for(int i = 0; i < recordCount; i++)
-		{
-			if(hmNode.containsKey(i))
+			if(ifFull(current) == false && getChild(CurrentIndex,placement) == -1)
 			{
-				BtreeNode n = hmNode.get(i);
-				int[] d = n.getData();
+				moveRight(ins);
+				this.file.seek(32+(recordSize)*CurrentIndex + 24*ins);
+				this.file.writeLong(key);
+			}
+			if(ifFull(current) == true)
+			{
 				
-				s = s + "Record# " + i + ": (";
-				for(int j = 0; j < d.length - 1; j++)
-				{
-					s = s + d[j] + ", ";
-				}
-				s = s + d[d.length - 1] + ")" + "\n";
+			}
+		
+	}
+	public int getChild(int currentNode,int placement)
+	{
+		this.seek(24+(recordSize *currentNode) + placement * 24)
+		try
+		{
+			return (int)this.readLong();
+		}
+		catch(EOFException)
+		{
+			return -1
+		}
+	}
+	public void split(Object[] currentnodearray, int toBeInserted, int insertedPlacement)
+	{
+		
+	}
+	public int findMiddle(Object[] array, int toBeInserted,int insertedPlacement)
+	{
+		long newToBeInserted = (long)toBeInserted;
+		long newInsertedPlacement = (long)insertedPlacement;
+		int middle;
+		if((array.length + 1)%2 == 0)
+		{
+			middle = array.length/2 + 1;
+			if(newInsertedPlacement > middle)
+			{
+				return array[middle-1];
+			}
+			else if(newInsertedPlacement < middle && newInsertedPlacement == middle - 1)
+			{
+				return newToBeInserted
+			}
+			else if(newInsertedPlacement == middle)
+			{
+				return toBeInserted;
+			}
+			else if(newInsertedPlacement<middle)
+			{
+				return array[middle-2];
 			}
 		}
-		System.out.print(s + "\n" + "> ");
+		else
+		{
+			middle = array.length/2;
+			if(newInsertedPlacement == middle)
+			{
+				return array[middle-1];
+			}
+			else if(newInsertedPlacement > middle && newInsertedPlacement==middle+1)
+			{
+				return newToBeInserted;
+			}
+			else if(newInsertedPlacement>middle)
+			{
+				return array[middle]
+			}
+			else if(newInsertedPlacement < middle)
+			{
+				return array[middle-1];
+			}
+		}
+	}
+	public void split(int currentNode,)
+	{
+		
+	}
+	public boolean ifFull(Object[] currentarray)
+	{
+		int len = currentarray.length;
+		for(int i = 0;i<len;i++)
+		{
+			if(currentarray[i] == null)
+			{
+				return false;
+			}
+		}
+		return true;
+		
+	}
+	public void moveRight(int placement)  throws IOException
+	{
+		this.file.seek(8);//points to rootnode index
+		int rootindex = (int)this.file.readLong();
+		Object[] current = new Object[order - placement];
+		for(int i = placement; i<order;i++)
+		{
+			try
+			{
+				this.file.seek((32+(recordSize)*rootindex) + 24*(i) );
+				current[i-placement] = this.file.readLong();
+			}
+			catch(EOFException e)
+			{
+				current[i-placement] = null;
+			}
+		}
+		for(int i = placement+1; i<order;i++)
+		{
+				this.file.seek((32+(recordSize)*rootindex) + 24*(i) );
+				if(current[i-placement-1] != null)
+				{
+					this.file.writeLong((long)current[i-placement-1]);
+				}
+		}
+	}
+	public int checkPlacement(Object[] currentarray,int insertion)
+	{
+		int len = currentarray.length;
+		long temp = insertion;
+		for(int i = 0;i<len;i++)
+		{
+			if(currentarray[i] == null)
+			{
+				return i;
+			}
+			if(temp < (long)currentarray[i] && i == 0)
+			{
+				return i;
+			}
+			if(i != len - 1)
+			{
+				if (temp < (long)currentarray[i] && temp > (long)currentarray[i-1] && i != 0)
+				{	
+					return i;
+				}
+			}
+		}
+		return len;
 	}
 }
