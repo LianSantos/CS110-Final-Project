@@ -4,11 +4,12 @@ import java.io.*;
 //holds the BTree formed from all the ID
 public class BTree {
 	
-	private final int order = 5; //indicates the maximum number of ID that a node can hold
+	private final int order = 3; //indicates the maximum number of ID that a node can hold
 	private int Node_size;	//indicates the maximum number of long ints present per node
 	private int max_bytes;
 	private int recordCount;	//indicates the total number of records (number of nodes) 
 	private int rootNum;	//indicates what record is the root node
+	private int useRecord;
 	private HashMap<Integer, BtreeNode> hmNode;	//returns the equivalent node given the record number
 
 	private RandomAccessFile file;	//for creating the file for the BTree (default is Data.bt)
@@ -19,6 +20,7 @@ public class BTree {
 		hmNode = new HashMap<Integer, BtreeNode>();
 		Node_size = ((order - 1)*3) + 2;
 		max_bytes = Node_size*8;
+		useRecord = 0;
 		
 		//creates the file if it does not exist
         if(!file.exists())
@@ -43,7 +45,7 @@ public class BTree {
 	//inserts a new ID in the BTree
 	public void insert(int id, int offset) throws IOException
 	{
-		int useRecord = -1;	//indicates the record number where the new ID will be inserted
+		this.useRecord = -1;	//indicates the record number where the new ID will be inserted
 		
 		//if there are no other records present, useRecord is set to be record number 0 by default
 		if(recordCount <= 1)
@@ -53,7 +55,7 @@ public class BTree {
 		//calls findRecord method to determine which record should be used
 		else
 		{
-			useRecord = findRecord(id, hmNode, rootNum);
+			findRecord(id, hmNode, rootNum);
 		}
 		
 		//if the record is new, creates a new BtreeNode and updates hmNode
@@ -121,24 +123,24 @@ public class BTree {
 			//executes if no new root node is created
 			else
 			{
-				//updates the data of the root node
-				//inserts the new node in the root node in the proper place
-				int ins = hmNode.get(rootNum).insertLoc(parentID);
-				if(hmNode.get(rootNum).getValue(ins) > parentID)
+				//updates the data of the parent node
+				//inserts the new node in the parent node in the proper place
+				int p = hmNode.get(useRecord).getValue(0);
+				int ins = hmNode.get(p).insertLoc(parentID);
+				if(hmNode.get(p).getValue(ins) > parentID)
 				{
-					hmNode.get(rootNum).move(ins);
+					hmNode.get(p).move(ins);
 				}
-				hmNode.get(rootNum).insert(ins, parentID, offVal);
+				hmNode.get(p).insert(ins, parentID, offVal);
 				
-				hmNode.get(rootNum).changeValue(ins - 1, leftRecordNum);
-				hmNode.get(rootNum).changeValue(ins + 2, rightRecordNum);
+				hmNode.get(p).changeValue(ins - 1, leftRecordNum);
+				hmNode.get(p).changeValue(ins + 2, rightRecordNum);
 				//writes the data of the updated root node to the file
-				writeData(rootNum, hmNode);
+				writeData(p, hmNode);
 			}
 			
 			//updates the data of the new right node accordingly 
 			int index = 1;
-			hmNode.get(rightRecordNum).changeValue(0, rootNum);
 			for(int i = middle + 2; i < all_data.length; i++)
 			{
 				hmNode.get(rightRecordNum).changeValue(index, all_data[i]);
@@ -152,25 +154,64 @@ public class BTree {
 			//writes the updated data of the left node to the file
 			writeData(useRecord, hmNode);
 			
+			updateParentNode(rootNum, hmNode);
+			
+			int parentNum = hmNode.get(useRecord).getValue(0);
 			//recursively checks if a new node needs to be split
-			splitNode(rootNum, hmNode);
+			splitNode(parentNum, hmNode);
+		}
+	}
+	
+	public void updateParentNode(int record, HashMap<Integer, BtreeNode> hmNode) throws IOException
+	{
+		for(int i = 1; i < Node_size; i += 3)
+		{
+			int child = hmNode.get(record).getValue(i);
+			if(child != -1)
+			{
+				hmNode.get(child).changeValue(0, record);
+				writeData(child, hmNode);
+				updateParentNode(child, hmNode);
+			}
 		}
 	}
 	
 	//determines what record number should the new ID be inserted
-	public int findRecord(int id, HashMap<Integer, BtreeNode> hmNode, int record)
+	public void findRecord(int id, HashMap<Integer, BtreeNode> hmNode, int rec)
 	{
-		int[] data = hmNode.get(record).getData();
+		int[] data = hmNode.get(rec).getData();
+		int numChild = 0; 
 		
 		for(int i = 2; i < data.length; i += 3)
 		{
 			if(data[i] > id)
 			{
-				int Child_record = hmNode.get(record).getValue(i - 1);
+				int Child_record = hmNode.get(rec).getValue(i - 1);
 				if(Child_record != -1)
 				{
-					record = Child_record;
-					findRecord(id, hmNode, record);
+					rec = Child_record;
+					
+					data = hmNode.get(rec).getData();
+					for(int k = data.length - 1; k >= 1; k -= 3)
+					{
+						if(data[k] == -1)
+						{
+							numChild++;
+						}
+						else
+						{
+							numChild = 0;
+							break;
+						}
+					}
+					
+					if(numChild == this.order)
+					{
+						this.useRecord = rec;
+					}
+					
+					findRecord(id, hmNode, rec);
+					break;
 				}
 			}
 		}
@@ -188,16 +229,34 @@ public class BTree {
 		
 		if(data[lastKeyIndex] < id)
 		{
-			int child = hmNode.get(record).getValue(lastKeyIndex + 2);
+			int child = hmNode.get(rec).getValue(lastKeyIndex + 2);
 			
 			if(child != -1)
 			{
-				record = child;
-				findRecord(id, hmNode, record);
+				rec = child;
+				
+				data = hmNode.get(rec).getData();
+				for(int k = data.length - 1; k >= 1; k -= 3)
+				{
+					if(data[k] == -1)
+					{
+						numChild++;
+					}
+					else
+					{
+						numChild = 0;
+						break;
+					}
+				}
+				
+				if(numChild == this.order)
+				{
+					this.useRecord = rec;
+				}
+				
+				findRecord(id, hmNode, rec);
 			}
 		}
-		
-		return record;
 	}
 	
 	//writes the important data in the file created
