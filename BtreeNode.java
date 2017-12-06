@@ -1,268 +1,91 @@
-
+//holds important information for each node
+//includes all the ID in that node, their equivalent offset, and the ID of the node's children
 public class BtreeNode {
 	
-	private int recordCount;
-	private int recordID;
+	private int order; //indicates the maximum number of keys or ID in the node
+	private int Node_Size;	//maximum size to hold all the important information
+	private int middle_key;	//indicates the index of the middle key
 	
-	private int parent;
+	private int recordCount;	//indicates the number of ID in the node
 	
-	private int child_1;
-	private int key_1;
-	private int offset_1;
+	private int[] data_values;	//holds all the important information of the node
 	
-	private int child_2;
-	private int key_2;
-	private int offset_2;
-	
-	private int child_3;
-	private int key_3;
-	private int offset_3;
-	
-	private int child_4;
-	private int key_4;
-	private int offset_4;
-	
-	private int child_5;
-	
-	private int key_5;
-	private int offset_5;
-	private int child_6;
-	
-	public BtreeNode()
+	public BtreeNode(int ord)
 	{
+		order = ord;
+		Node_Size = ((order - 1)*3) + 2;
+		
+		//determines the index of the middle key
+		if(order % 2 != 0)
+		{
+			middle_key = (((order + 1)/2)*3) - 1;
+		}
+		else
+		{
+			middle_key = (((order)/2)*3) - 1;
+		}
+		
 		recordCount = 0;
+		data_values = new int[Node_Size + 3];
 		
-		parent = -1;
-		
-		child_1 = -1;
-		key_1 = -1;
-		offset_1 = -1;
-		
-		child_2 = -1;
-		key_2 = -1;
-		offset_2 = -1;
-		
-		child_3 = -1;
-		key_3 = -1;
-		offset_3 = -1;
-		
-		child_4 = -1;
-		key_4 = -1;
-		offset_4 = -1;
-		
-		child_5 = -1;
-		
-		child_6 = -1;
-		key_5 = -1;
-		offset_5 = -1;
+		//by default, sets all the values of data_values to -1
+		for(int i = 0; i < data_values.length; i++)
+		{
+			data_values[i] = -1;
+		}
 	}
 	
-	public int getRecordID()
-	{
-		return recordID;
-	}
-	
+	//computes the total recordCount
 	public void computeRecordCount()
 	{
 		recordCount = 0;
 		
-		if(key_1 != -1)
+		for(int i = 2; i < data_values.length; i+=3)
 		{
-			recordCount++;
-		}
-		
-		if(key_2 != -1)
-		{
-			recordCount++;
-		}
-		
-		if(key_3 != -1)
-		{
-			recordCount++;
-		}
-		
-		if(key_4 != -1)
-		{
-			recordCount++;
-		}
-		
-		if(key_5 != -1)
-		{
-			recordCount++;
+			if(data_values[i] != -1)
+			{
+				recordCount++;
+			}
 		}
 	}
 	
+	//returns the recordCount
 	public int getRecordCount()
 	{
 		computeRecordCount();
 		return recordCount;
 	}
 	
+	//returns the middle key
+	public int getMiddleKey()
+	{
+		return middle_key;
+	}
+	
+	//returns the array containing all the important data
+	public int[] getAllData()
+	{
+		return data_values;
+	}
+	
+	//returns a data in data_values given an index
 	public int getValue(int index)
 	{
-		if(index == 0)
-		{
-			return parent;
-		}
-		
-		else if(index == 1)
-		{
-			return child_1;
-		}
-		else if(index == 2)
-		{
-			return key_1;
-		}
-		else if(index == 3)
-		{
-			return offset_1;
-		}
-		
-		else if(index == 4)
-		{
-			return child_2;
-		}
-		else if(index == 5)
-		{
-			return key_2;
-		}
-		else if(index == 6)
-		{
-			return offset_2;
-		}
-		
-		else if(index == 7)
-		{
-			return child_3;
-		}
-		else if(index == 8)
-		{
-			return key_3;
-		}
-		else if(index == 9)
-		{
-			return offset_3;
-		}
-		
-		else if(index == 10)
-		{
-			return child_4;
-		}
-		else if(index == 11)
-		{
-			return key_4;
-		}
-		else if(index == 12)
-		{
-			return offset_4;
-		}
-		
-		else if(index == 13)
-		{
-			return child_5;
-		}
-		
-		else if(index == 14)
-		{
-			return key_5;
-		}
-		
-		else if(index == 15)
-		{
-			return offset_5;
-		}
-		
-		else
-		{
-			return child_6;
-		}
+		return data_values[index];
 	}
 	
+	//changes a data in data_values indicated by the index
 	public void changeValue(int index, int newVal)
 	{
-		if(index == 0)
-		{
-			parent = newVal;
-		}
-		
-		else if(index == 1)
-		{
-			child_1 = newVal;
-		}
-		else if(index == 2)
-		{
-			key_1 = newVal;
-		}
-		else if(index == 3)
-		{
-			offset_1 = newVal;
-		}
-		
-		else if(index == 4)
-		{
-			child_2 = newVal;
-		}
-		else if(index == 5)
-		{
-			key_2 = newVal;
-		}
-		else if(index == 6)
-		{
-			offset_2 = newVal;
-		}
-		
-		else if(index == 7)
-		{
-			child_3 = newVal;
-		}
-		else if(index == 8)
-		{
-			key_3 = newVal;
-		}
-		else if(index == 9)
-		{
-			offset_3 = newVal;
-		}
-		
-		else if(index == 10)
-		{
-			child_4 = newVal;
-		}
-		else if(index == 11)
-		{
-			key_4 = newVal;
-		}
-		else if(index == 12)
-		{
-			offset_4 = newVal;
-		}
-		
-		else if(index == 13)
-		{
-			child_5 = newVal;
-		}
-		
-		else if(index == 14)
-		{
-			key_5 = newVal;
-		}
-		
-		else if(index == 15)
-		{
-			offset_5 = newVal;
-		}
-		
-		else
-		{
-			child_6 = newVal;
-		}
+		data_values[index] = newVal;
 	}
 	
+	//determines where in data_values should the new ID be inserted
 	public int insertLoc(int id)
 	{
 		int location = -1;
 		
-		for(int i = 2; i < 17; i += 3)
+		for(int i = 2; i < (Node_Size + 3); i += 3)
 		{	
 			if(this.getValue(i) == -1 || this.getValue(i) > id)
 			{
@@ -274,6 +97,7 @@ public class BtreeNode {
 		return location;
 	}
 	
+	//moves the subsequent data by one space to the right to make space for the new ID
 	public void move(int insertIndex)
 	{
 		computeRecordCount();
@@ -292,15 +116,17 @@ public class BtreeNode {
 		}
 	}
 	
+	//inserts the ID and its equivalent offset to data_values
 	public void insert(int insertIndex, int key, int offsetValue)
 	{
 		changeValue(insertIndex, key);
 		changeValue(insertIndex + 1, offsetValue);
 	}
 	
+	//handles what happens to data_values when a split happens
 	public void split(int parentID)
 	{
-		for(int i = 8; i < 17; i++)
+		for(int i = middle_key; i < (Node_Size + 3); i++)
 		{
 			this.changeValue(i, -1);
 		}
@@ -308,26 +134,34 @@ public class BtreeNode {
 		this.changeValue(0, parentID);
 	}
 	
+	//returns data_values excluding the slots dedicated for the excess ID
 	public int[] getData()
 	{
-		int[] allData = new int[14];
+		int[] dataWithNoSplitSpace = new int[Node_Size];
 		
-		allData[0] = parent;
-		allData[1] = child_1;
-		allData[2] = key_1;
-		allData[3] = offset_1;
-		allData[4] = child_2;
-		allData[5] = key_2;
-		allData[6] = offset_2;
-		allData[7] = child_3;
-		allData[8] = key_3;
-		allData[9] = offset_3;
-		allData[10] = child_4;
-		allData[11] = key_4;
-		allData[12] = offset_4;
-		allData[13] = child_5;
+		for(int i = 0; i < data_values.length - 3; i++)
+		{
+			dataWithNoSplitSpace[i] = data_values[i];
+		}
 		
-		return allData;
+		return dataWithNoSplitSpace;
+	}
+	
+	//returns all the ID and their equivalent offset
+	public int[] getKeys(int record)
+	{
+		int[] d = new int[((Node_Size - 2)/3)*2];
+		int index = 0;
+		
+		for(int i = 2; i < data_values.length - 3; i += 3)
+		{
+			d[index] = data_values[i];
+			index++;
+			d[index] = data_values[i+1];
+			index++;
+		}
+		
+		return d;
 	}
 	
 	
